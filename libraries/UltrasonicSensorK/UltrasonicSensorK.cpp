@@ -53,10 +53,8 @@ float UltrasonicSensorK::avgMeasurementsDistance(int num, int UB, int LB){ //num
   int tempCount = 0;
   float tot=0;
   float measure;
-  Serial.println("xxxx");
   for(int i=0;i<num;i++){
     measure=measureDistance();
-    Serial.println(measure);
     if ((measure<=UB)&&(measure>=LB)){
       tot=tot+measure;
       tempCount++;
