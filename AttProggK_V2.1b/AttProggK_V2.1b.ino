@@ -55,12 +55,16 @@ MotorL293DControllerK motor2(MOTOR2FOWARDPIN, MOTOR2BACKWARDPIN, MOTOR2ENABLEPIN
 void startWIFI();
 float startEpoch(int numEpoch, unsigned long secondsEpoch, float* parameters, float amplifier, int v0);
 float sensorFunction(float distance);
+void applyMutation(float* parameters, float* returnArray);
 
 void clearBuffer(char* buffer);
 
+//Global variables
+int len = 4;
+
 
 void inviaDati(char* dato) {
-  Udp.beginPacket("192.168.1.7", 2025);
+  Udp.beginPacket("192.168.1.5", 2025);
   Udp.print(dato);
   Udp.endPacket();
 }
@@ -69,6 +73,7 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
   pinMode(LED, OUTPUT);
+
   
   UltraS1.begin();
   UltraS2.begin();
@@ -95,44 +100,84 @@ void loop() {
   int totEpoch = 30;
   unsigned long secondsEpoch = 30;
   float bestScore=0;
-  float parameters[4];
+  float parameters[len];
+  float bestParameters[len];
 
-  parameters[0]=float(random(0,100))/100;
-  parameters[1]=float(random(0,100))/100;
-  parameters[2]=float(random(0,100))/100;
-  parameters[3]=float(random(0,100))/100;
+  /*parameters[0]=float(esp_random()%2); //here we are considering booleans
+  delay(10);
+  parameters[1]=float(esp_random()%2);
+  delay(10);
+  parameters[2]=float(esp_random()%2);
+  delay(10);
+  parameters[3]=float(esp_random()%2);*/
+  parameters[0]=0;
+  parameters[1]=1;
+  parameters[2]=0;
+  parameters[3]=1;
+
+  
 
   int pos = 0;
 
   char buffer[100];
-  sprintf(buffer,"SESSION STARTED");
+  sprintf(buffer,"\n SESSION STARTED \n");
   inviaDati(buffer);
   clearBuffer(buffer);
+
+  buffer[100];
+  sprintf(buffer," >Starting epoch %d with configuration: a=%f b=%f c=%f d=%f",0,parameters[0],parameters[1],parameters[2],parameters[3]);
+  inviaDati(buffer);
+  clearBuffer(buffer);
+  float score = startEpoch(0,secondsEpoch,parameters,90,130);
+  //copy the best scores with relative parameters
+  bestScore = score;
+  //Serial.println("dim "+(String)(sizeof(parameters)/sizeof(parameters[0])));
+  for(int i=0;i<len;i++){
+    bestParameters[i] = parameters[i];
+  }
+  buffer[100];
+  sprintf(buffer,"new best score %f with configuration: a=%f b=%f c=%f d=%f",score,parameters[0],parameters[1],parameters[2],parameters[3]);
+  inviaDati(buffer);
+  clearBuffer(buffer);
+  //apply mutation
+  applyMutation(bestParameters,parameters);
+  for(int g=0;g<len;g++){
+    Serial.println((String)bestParameters[g]+" = "+(String)parameters[g]);
+  }
   
-  for(int i=0;i<totEpoch;i++){
+  for(int i=0;i<(totEpoch-1);i++){
 
     char buffer[100];
-    sprintf(buffer,">Starting epoch %d with configuration: a=%f b=%f c=%f d=%f",i,parameters[0],parameters[1],parameters[2],parameters[3]);
+    sprintf(buffer,"\n >Starting epoch %d with configuration: a=%f b=%f c=%f d=%f",i+1,parameters[0],parameters[1],parameters[2],parameters[3]);
     inviaDati(buffer);
     clearBuffer(buffer);
     //start epoch
+    Serial.println("starting epoch "+(String)(i+1));
     float score = startEpoch(i,secondsEpoch,parameters,50,130);
     //check the score and send data to PC
-    if(score<bestScore){
+    if(score<bestScore){  //new best score found
       char buffer[100];
-      sprintf(buffer,"new best score %f with configuration: a=%f b=%f c=%f d=%f",score,parameters[0],parameters[1],parameters[2],parameters[3]);
+      sprintf(buffer,"new best score %f with configuration: a=%f b=%f c=%f d=%f ",score,parameters[0],parameters[1],parameters[2],parameters[3]);
       inviaDati(buffer);
       clearBuffer(buffer);
-    }else{
+      bestScore = score;
+      for(int h=0;h<len;h++){
+        bestParameters[h] = parameters[h];
+      }
+    }else{ //just notifying the score
       char buffer[100];
-      sprintf(buffer,"score %f with configuration: a=%f b=%f c=%f d=%f",score,parameters[0],parameters[1],parameters[2],parameters[3]);
+      sprintf(buffer,"score %f with configuration: a=%f b=%f c=%f d=%f ",score,parameters[0],parameters[1],parameters[2],parameters[3]);
       inviaDati(buffer);
       clearBuffer(buffer);
     }
-    
-
     //apply the mutation
-    parameters[(pos++)%4] = float(random(0,100))/100;
+    for(int g=0;g<4;g++){
+      Serial.println("from "+(String)bestParameters[g]+" a mutation may be applied  ");
+    }
+    applyMutation(bestParameters,parameters);
+    for(int g=0;g<len;g++){
+      Serial.println("after "+(String)bestParameters[g]+" = "+(String)parameters[g]);
+    }
 
     motor1.stop();
     motor2.stop();
@@ -178,15 +223,17 @@ float startEpoch(int numEpoch, unsigned long secondsEpoch, float* parameters, fl
       delay(30);
       float d3 = UltraS3.measureDistance();
       delay(30);
-      int flag;
+      int flag, wall;
       if(d1 < 8 || d3 <8) flag = 0;
       else flag = 1;
+      if(abs(d1-d3)<4) wall=1;
+      else wall=0;
       //apply the functions to identify the speed motor
       fx1 = (v0 + sensorFunction(d1,amplifier)*parameters[0] + sensorFunction(d3,amplifier)*parameters[3]);
       fx2 = (v0 + sensorFunction(d1,amplifier)*parameters[1] + sensorFunction(d3,amplifier)*parameters[2]);
       //collect the score
       score = score + 1/d1 + 1/d3;
-      if(!flag){
+      if(wall==0){
         score = score + collisionAdder; //in case of collision worsens the score
       }
       //set range constraint
@@ -206,20 +253,25 @@ float startEpoch(int numEpoch, unsigned long secondsEpoch, float* parameters, fl
         delay(1000);
       }
     }else{//Backward
+
+      //offset sensor during backward movemnets
+      int offset_distance = 0; //cm
       //measure distances
-      float d4 = UltraS4.measureDistance();
+      float d4 = UltraS4.measureDistance()+offset_distance;
       delay(30);
-      float d6 = UltraS6.measureDistance();
+      float d6 = UltraS6.measureDistance()+offset_distance;
       delay(30);
-      int flag;
-      if(d4 < 5 || d6 <5) flag = 0;
+      int flag,wall;
+      if(d4 < 8 || d6 <8) flag = 0;
       else flag = 1;
+      if(abs(d4-d6)<4) wall=1;
+      else wall=0;
       //apply the functions to identify the speed motor
       fx1 = (v0 + sensorFunction(d4,amplifier)*parameters[2] + sensorFunction(d6,amplifier)*parameters[1]);
       fx2 = (v0 + sensorFunction(d4,amplifier)*parameters[3] + sensorFunction(d6,amplifier)*parameters[0]);
       //collect the score
       score = score + 1/d4 + 1/d6;
-      if(!flag){
+      if(wall==0){
         score = score + collisionAdder; //in case of collision worsens the score
       }
       //set range constraint
@@ -250,7 +302,23 @@ float startEpoch(int numEpoch, unsigned long secondsEpoch, float* parameters, fl
 }
 
 float sensorFunction(float distance, float amplifier){
-  return pow(27/(distance+1),4)*amplifier;
+  return pow(50/(distance+1),2)*amplifier;  
+}
+
+void applyMutation(float* a,float* b){
+  Serial.println("dim interna "+(String)len);
+  for(int j=0;j<len;j++){
+    b[j] = a[j];
+  }
+  long pos = esp_random()%len;
+  Serial.println("mutation applied at pos "+(String)pos);
+  Serial.print("before "+(String)a[pos]);
+  //b[pos] = float(esp_random()%2); // boolean
+  //the following instruction just for boolean world
+  if(b[pos]==0) b[pos]=1;
+  else b[pos]=0;
+  //////////////////////////////////////////////////
+  Serial.println(" after "+ (String)b[pos]);
 }
 
 
