@@ -103,17 +103,17 @@ void loop() {
   float parameters[len];
   float bestParameters[len];
 
-  /*parameters[0]=float(esp_random()%2); //here we are considering booleans
+  parameters[0]=float(esp_random()%2); //here we are considering booleans
   delay(10);
   parameters[1]=float(esp_random()%2);
   delay(10);
   parameters[2]=float(esp_random()%2);
   delay(10);
-  parameters[3]=float(esp_random()%2);*/
-  parameters[0]=0;
+  parameters[3]=float(esp_random()%2);
+  /*parameters[0]=0;
   parameters[1]=1;
   parameters[2]=0;
-  parameters[3]=1;
+  parameters[3]=1;*/
 
   
 
@@ -233,7 +233,7 @@ float startEpoch(int numEpoch, unsigned long secondsEpoch, float* parameters, fl
       fx2 = (v0 + sensorFunction(d1,amplifier)*parameters[1] + sensorFunction(d3,amplifier)*parameters[2]);
       //collect the score
       score = score + 1/d1 + 1/d3;
-      if(wall==0){
+      if(wall==0 && flag==0){
         score = score + collisionAdder; //in case of collision worsens the score
       }
       //set range constraint
@@ -271,7 +271,7 @@ float startEpoch(int numEpoch, unsigned long secondsEpoch, float* parameters, fl
       fx2 = (v0 + sensorFunction(d4,amplifier)*parameters[3] + sensorFunction(d6,amplifier)*parameters[0]);
       //collect the score
       score = score + 1/d4 + 1/d6;
-      if(wall==0){
+      if(wall==0 && flag==0){
         score = score + collisionAdder; //in case of collision worsens the score
       }
       //set range constraint
