@@ -107,17 +107,17 @@ void loop() {
   float parameters[len];
   float bestParameters[len];
 
-  /*parameters[0] = float(esp_random() % 100) / 100;  //here we are considering floats
+  parameters[0] = float(esp_random() % 100) / 100;  //here we are considering floats
   delay(10);
   parameters[1] = float(esp_random() % 100) / 100;
   delay(10);
   parameters[2] = float(esp_random() % 100) / 100;
   delay(10);
-  parameters[3] = float(esp_random() % 100) / 100;*/
-  parameters[0]=0;
+  parameters[3] = float(esp_random() % 100) / 100;
+  /*parameters[0]=0;
   parameters[1]=1;
   parameters[2]=0;
-  parameters[3]=1;
+  parameters[3]=1;*/
 
 
 
